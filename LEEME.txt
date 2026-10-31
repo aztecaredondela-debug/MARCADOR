@@ -1,0 +1,42 @@
+MARCADOR SAR BALONMAN - PWA
+
+1) Sube TODA esta carpeta a un alojamiento con HTTPS (obligatorio para instalar una PWA):
+   - GitHub Pages, Netlify (arrastrar la carpeta en app.netlify.com/drop) o Cloudflare Pages: gratis.
+2) Abre la direccion en el movil.
+   - Android (Chrome): menu ⋮ > "Instalar aplicacion" / "Anadir a pantalla de inicio".
+   - iPhone (Safari): boton Compartir > "Anadir a pantalla de inicio".
+3) Abrela una vez con internet: se guarda todo (fondo, escudo, video) y despues funciona SIN conexion.
+
+Si cambias archivos, sube tambien una nueva version: en sw.js cambia 'marcador-sar-v1' por 'marcador-sar-v2'.
+
+--- USO CON TV (Chromecast desde el PC) ---
+1) En el PC abre el marcador normal (ahi estan los controles).
+2) Pulsa el boton "PANTALLA TV": se abre otra ventana solo con el marcador, sin controles.
+3) En esa ventana haz un clic (activa sonido y pantalla completa).
+4) En esa ventana: menu de Chrome (3 puntos) > Guardar, compartir y transmitir > Transmitir... > elige el Chromecast > Fuentes: "Transmitir pestana".
+5) Deja la ventana de control visible en el PC y manejalo desde ahi. La TV se actualiza sola.
+Las dos ventanas deben estar en el mismo navegador (Chrome) y en el mismo ordenador.
+
+--- SANCIONES (amarilla, 2 minutos, roja) ---
+1) Escribe el dorsal en el cuadro "Dorsal" (o dejalo vacio y te lo pide).
+2) Pulsa 🟨, 2' o 🟥 del equipo A (local) o B (rival).
+3) En la pantalla sale grande 5 segundos (clic para cerrarlo antes) y luego queda pequeño bajo los goles.
+4) Para quitar una sancion (el arbitro la retira), pulsala en la franja de resumen de la barra de controles.
+
+--- JUGADORES (plantillas) ---
+1) En el panel, pulsa "Plantilla" en la tarjeta de SAR (y en la del rival). Escribe un jugador por linea: dorsal y nombre.
+   Ejemplo:  7 Marta Perez
+2) Para apuntar un gol o sancion: toca al jugador (se ilumina) y pulsa +1, Amarilla, 2 min o Roja de ese equipo.
+   Sin jugador tocado, +1 suma gol anonimo al equipo. Tambien vale escribir el dorsal en el cuadro "Dorsal".
+3) La TV muestra el ultimo goleador bajo el marcador y el nombre del jugador en el aviso de sancion.
+4) La plantilla de SAR se conserva entre partidos. "NUEVO PARTIDO" borra rival, escudo rival y su plantilla.
+
+--- SI SUBES UNA VERSION NUEVA ---
+Cambia 'marcador-sar-v14' por 'marcador-sar-v15' en sw.js. El codigo (html/js) ahora se pide primero a internet,
+asi que no se queda una version vieja guardada.
+
+--- FOTOS DE JUGADORES ---
+1) Plantilla > a la derecha salen los jugadores: toca uno para ponerle foto (o "Subir varias" con archivos llamados 1.jpg, 7.jpg... = dorsal).
+2) Cuando marca, o le ponen amarilla, 2 min o roja, su foto sale grande en la TV 5 segundos (clic para cerrar antes).
+3) Las fotos de SAR se conservan entre partidos; las del rival se borran con NUEVO PARTIDO.
+4) Las fotos se guardan en el navegador (se reducen solas); no se suben a ningun servidor.
