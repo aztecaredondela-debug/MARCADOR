@@ -215,6 +215,7 @@ body.prev{cursor:default}body.prev #hintTV{display:none!important}
   <input type="file" id="fotoUno" accept="image/*" style="display:none" onchange="fotoUno(event)">
   <input type="file" id="fotoVarias" accept="image/*" multiple style="display:none" onchange="fotosVarias(event)">
 </div></div>
+<div class="modal" id="bloqueo" style="z-index:30000"><div class="mbox"><h2>Hay otra ventana de control abierta</h2><p class="hint">Para que no se mezclen partidos ni se descuadre el reloj, solo una ventana puede controlar el marcador. Cierra la otra o pulsa el botón para controlar desde esta (se carga el último estado guardado).</p><div class="fila"><button class="b gr" onclick="tomarControl()">Tomar el control aquí</button></div></div></div>
 <div id="alerta"><div class="al-row"><img id="alFoto" class="al-foto" alt="" style="display:none"><div class="al-card" id="alCard"><span id="alDorsal"></span></div></div><div id="alTxt"></div><div id="alSub"></div></div>
 <div id="hintTV">Haz clic una vez aquí para activar sonido y pantalla completa</div>
 <div id="pantallaDescanso"><video id="vFull" loop playsinline src="descanso.mp4"></video>
@@ -230,8 +231,22 @@ if(!TV)$('prevBox').innerHTML='<iframe src="'+location.pathname+'?tv=1&prev=1" s
 const KEY='marcadorSAR_v2', HB='marcadorSAR_hb', EXC=120, MAXEXC=3, TMS=3, ID=Math.random().toString(36).slice(2);
 let S={pA:0,pB:0,modo:'2x30',n:2,min:30,per:0,rem:1800,exA:[],exB:[],carA:[],carB:[],tmA:0,tmB:0,nomA:'SAR',nomB:'',colA:'#ffffff',colB:'#ffffff',extra:false,escB:'',rosA:[],rosB:[],ult:{A:'',B:''},rev:0};
 const FKEY='marcadorSAR_fotos_v1';
-let FOT={A:{},B:{}},fotoN=null,sel={A:null,B:null},plE='A',otroHB=0,corriendo=false,last=0,ctx=null,descOn=false,tvVisto=0,sonTV=true;
+let FOT={A:{},B:{}},fotoN=null,sel={A:null,B:null},plE='A',otroHB=0,corriendo=false,last=0,ctx=null,descOn=false,tvVisto=0,sonTV=true,tvRev=0;
 
+/* ===== Una sola ventana de control: la segunda queda bloqueada ===== */
+const OPK='marcadorSAR_op';let esControl=TV;
+function opLeer(){try{return JSON.parse(localStorage.getItem(OPK))}catch(e){return null}}
+function opLatido(){try{localStorage.setItem(OPK,JSON.stringify({id:ID,t:Date.now()}))}catch(e){}}
+function tomarControl(){try{sessionStorage.setItem('marcadorSAR_forzar','1')}catch(e){}location.reload()}
+function perderControl(){esControl=false;$('bloqueo').classList.add('on')}
+if(!TV){
+  let forz=null;try{forz=sessionStorage.getItem('marcadorSAR_forzar');sessionStorage.removeItem('marcadorSAR_forzar')}catch(e){}
+  const o=opLeer();
+  if(forz||!o||o.id===ID||Date.now()-o.t>5000){esControl=true;opLatido()}
+  else{esControl=false;$('bloqueo').classList.add('on')}
+  setInterval(()=>{if(!esControl)return;const o=opLeer();if(o&&o.id!==ID)perderControl();else opLatido()},1000);
+  window.addEventListener('pagehide',()=>{const o=opLeer();if(o&&o.id===ID)try{localStorage.removeItem(OPK)}catch(e){}});
+}
 /* ===== Guardado con control de versión (rev) =====
    Cada cambio sube S.rev. Una ventana con datos viejos NUNCA pisa a otra más nueva:
    si en el almacenamiento hay una versión superior, la adopta en vez de sobrescribirla. */
@@ -249,12 +264,12 @@ function adoptar(d){
   pintarEquipos();pintar();
 }
 function escribir(){
-  if(TV)return;
+  if(TV||!esControl)return;
   const g=leerGuardado();
   if(g&&(g.rev||0)>(S.rev||0)){adoptar(g);return}   // hay una versión más nueva en otra ventana
   try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
 }
-function guardar(){if(TV)return;const g=leerGuardado();if(g&&(g.rev||0)>(S.rev||0)){adoptar(g);return}S.rev=(S.rev||0)+1;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function guardar(){if(TV||!esControl)return;const g=leerGuardado();if(g&&(g.rev||0)>(S.rev||0)){adoptar(g);return}S.rev=(S.rev||0)+1;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function cargar(){const d=leerGuardado();if(d)S=Object.assign(S,d);normalizar()}
 window.addEventListener('storage',ev=>{
   if(TV)return;
@@ -298,7 +313,7 @@ async function fotosVarias(ev){
   if(!nums.size){$('plInfo').textContent='Primero escribe la plantilla (dorsal y nombre) y luego sube las fotos.';return}
   let ok=0;const sin=[];
   for(const f of files){
-    const m=/(\d{1,2})/.exec(f.name.replace(/\.[^.]+$/,'')),n=m?String(parseInt(m[1],10)):null;
+    const m=/^\D*(\d{1,2})\D*$/.exec(f.name.replace(/\.[^.]+$/,'')),n=m?String(parseInt(m[1],10)):null;
     if(!n||!nums.has(n)){sin.push(f.name);continue}
     const u=await new Promise(res=>reducirFoto(f,res));if(u){FOT[plE][n]=u;ok++}
   }
@@ -314,6 +329,11 @@ function jug(e,n){
   if(!p){p={n,nom:'',g:0,a:0,d:0,r:0};S['ros'+e].push(p);ordenarPlantilla(e)}
   return p;
 }
+function jugOK(e,n){
+  const p=buscarJug(e,n);if(p)return p;
+  if(S['ros'+e].length&&!confirm('El dorsal '+n+' no está en la plantilla de '+nomEq(e)+'.'+String.fromCharCode(10)+'¿Añadirlo?'))return null;
+  return jug(e,n);
+}
 function ordenarPlantilla(e){S['ros'+e].sort((a,b)=>(parseInt(a.n,10)||0)-(parseInt(b.n,10)||0)||a.n.localeCompare(b.n))}
 function etiqueta(p){return p?('#'+p.n+(p.nom?' '+p.nom:'')):''}
 /* Jugador al que se aplica una acción del equipo e: el seleccionado, el dorsal escrito, o se pregunta */
@@ -321,8 +341,9 @@ function resolverJug(e,preguntar){
   let n=sel[e]||normDorsal($('dorsal').value);
   if(!n&&preguntar){const r=prompt('Dorsal del jugador ('+nomEq(e)+'):');if(r===null)return null;n=normDorsal(r)}
   if(!n)return null;
+  const p=jugOK(e,n);if(!p)return null;
   $('dorsal').value='';sel={A:null,B:null};
-  return jug(e,n);
+  return p;
 }
 function selJug(e,n){
   const o=e==='A'?'B':'A';sel[o]=null;
@@ -365,7 +386,7 @@ function emitir(m){
 }
 let envT=0,envFull=false;
 function enviar(full){
-  if(TV)return;
+  if(TV||!esControl)return;
   if(full)envFull=true;
   if(envT)return;
   envT=setTimeout(()=>{
@@ -377,6 +398,7 @@ function recibir(m){
   if(!m)return;
   if(TV){
     if(m.t==='estado'){
+      if((m.S.rev||0)<tvRev)return;tvRev=m.S.rev||0;
       const antes=S.nomA+'|'+S.nomB+'|'+S.colA+'|'+S.colB;
       Object.assign(S,m.S);corriendo=m.run;last=Date.now();sonTV=m.son!==false;
       if(m.full||antes!==S.nomA+'|'+S.nomB+'|'+S.colA+'|'+S.colB)pintarEquipos();
@@ -384,7 +406,7 @@ function recibir(m){
     }else if(m.t==='desc')verDescanso(m.on,true);
     else if(m.t==='alerta')mostrarAlerta(m);
   }else{
-    if(m.t==='hola'){if(!m.prev)tvVisto=Date.now();enviar(true);emitir({t:'desc',on:descOn})}
+    if(m.t==='hola'){if(!esControl)return;if(!m.prev)tvVisto=Date.now();enviar(true);emitir({t:'desc',on:descOn})}
     if(m.t==='ping')tvVisto=Date.now();
   }
 }
@@ -504,7 +526,7 @@ function configDuracion(){
 }
 function modPuntos(e,c){
   let p=null;
-  if(!TV){const n=sel[e]||normDorsal($('dorsal').value);if(n)p=jug(e,n)}
+  if(!TV){const n=sel[e]||normDorsal($('dorsal').value);if(n){p=jugOK(e,n);if(!p)return}}
   if(c>0){
     S['p'+e]+=c;
     if(p){p.g++;S.ult[e]=etiqueta(p)}
