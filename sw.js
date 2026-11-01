@@ -1,4 +1,4 @@
-const CACHE = 'marcador-sar-v14';
+const CACHE = 'marcador-sar-v15';
 const ARCHIVOS = ['./', './index.html', './manifest.json', './fondo.jpg', './escudoSAR.png',
   './descanso.mp4', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png'];
