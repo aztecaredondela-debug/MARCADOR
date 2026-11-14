@@ -1,12 +1,13 @@
-const CACHE = 'marcador-sar-v15';
-const ARCHIVOS = ['./', './index.html', './manifest.json', './fondo.jpg', './escudoSAR.png',
-  './descanso.mp4', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
-  './icons/apple-touch-icon.png'];
+const CACHE = 'marcador-v7';
+const ARCHIVOS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
+  './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(async c => {
     // El vídeo pesado no debe impedir la instalación si falla
     await Promise.all(ARCHIVOS.map(a => c.add(a).catch(() => {})));
+    // Vídeo opcional del club: solo se guarda si de verdad es un vídeo
+    await fetch('./descanso.mp4').then(r => { if (r.ok && /^video\//.test(r.headers.get('Content-Type') || '')) return c.put('./descanso.mp4', r); }).catch(() => {});
   }).then(() => self.skipWaiting()));
 });
 
@@ -21,15 +22,16 @@ async function respuestaRango(req) {
   const c = await caches.open(CACHE);
   const r = await c.match(req.url, { ignoreSearch: true });
   if (!r) return fetch(req);
-  const buf = await r.arrayBuffer();
+  const blob = await r.blob();
+  const tam = blob.size;
   const m = /bytes=(\d+)-(\d*)/.exec(req.headers.get('range') || '');
   const ini = m ? +m[1] : 0;
-  const fin = m && m[2] ? +m[2] : buf.byteLength - 1;
-  return new Response(buf.slice(ini, fin + 1), {
+  const fin = m && m[2] ? Math.min(+m[2], tam - 1) : tam - 1;
+  return new Response(blob.slice(ini, fin + 1), {
     status: 206,
     headers: {
       'Content-Type': r.headers.get('Content-Type') || 'video/mp4',
-      'Content-Range': `bytes ${ini}-${fin}/${buf.byteLength}`,
+      'Content-Range': `bytes ${ini}-${fin}/${tam}`,
       'Content-Length': fin - ini + 1
     }
   });
