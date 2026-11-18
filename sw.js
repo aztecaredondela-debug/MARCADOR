@@ -1,20 +1,73 @@
-/* Cambia VERSION cada vez que subas una versión nueva para forzar la actualización */
-const VERSION = 'delegado-digital-v6';
-const ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
+const CACHE = 'marcador-v16';
+const ARCHIVOS = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png',
+  './icons/icon-maskable-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(async c => {
+    // El vídeo pesado no debe impedir la instalación si falla
+    await Promise.all(ARCHIVOS.map(a => c.add(a).catch(() => {})));
+    // Vídeo opcional del club: solo se guarda si de verdad es un vídeo
+    await fetch('./descanso.mp4').then(r => { if (r.ok && /^video\//.test(r.headers.get('Content-Type') || '')) return c.put('./descanso.mp4', r); }).catch(() => {});
+  }).then(() => self.skipWaiting()));
 });
+
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys()
+    .then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(() => self.clients.claim()));
 });
+
+// Los navegadores piden el vídeo por rangos (Range); hay que responder 206 desde la caché
+async function respuestaRango(req) {
+  const c = await caches.open(CACHE);
+  const r = await c.match(req.url, { ignoreSearch: true });
+  if (!r) return fetch(req);
+  const blob = await r.blob();
+  const tam = blob.size;
+  const m = /bytes=(\d+)-(\d*)/.exec(req.headers.get('range') || '');
+  const ini = m ? +m[1] : 0;
+  const fin = m && m[2] ? Math.min(+m[2], tam - 1) : tam - 1;
+  return new Response(blob.slice(ini, fin + 1), {
+    status: 206,
+    headers: {
+      'Content-Type': r.headers.get('Content-Type') || 'video/mp4',
+      'Content-Range': `bytes ${ini}-${fin}/${tam}`,
+      'Content-Length': fin - ini + 1
+    }
+  });
+}
+
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => {
-    const red = fetch(e.request).then(r => {
-      if (r && r.ok) { const copia = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copia)); }
-      return r;
-    }).catch(() => hit);
-    return hit || red;
-  }));
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  if (req.headers.has('range')) { e.respondWith(respuestaRango(req)); return; }
+  const url = new URL(req.url);
+  const esCodigo = req.mode === 'navigate' || /\.(html|js|json)$/.test(url.pathname) || url.pathname.endsWith('/');
+  if (esCodigo && url.origin === location.origin) {
+    // Código: primero la red (así nunca se queda una versión vieja); sin conexión o red lenta (3 s), la caché
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const res = await Promise.race([
+          fetch(req),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('lento')), 3000))
+        ]);
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
+      } catch (err) {
+        return (await cache.match(req, { ignoreSearch: true })) || Response.error();
+      }
+    })());
+    return;
+  }
+  e.respondWith(
+    caches.match(req, { ignoreSearch: true }).then(hit => {
+      const red = fetch(req).then(res => {
+        if (res && res.ok && url.origin === location.origin)
+          caches.open(CACHE).then(c => c.put(req, res.clone()));
+        return res;
+      }).catch(() => hit);
+      return hit || red;   // imágenes/vídeo: caché primero; se actualiza en segundo plano
+    })
+  );
 });
